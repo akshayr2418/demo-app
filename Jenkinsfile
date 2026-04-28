@@ -1,53 +1,57 @@
 pipeline {
     agent any
-
-    environment {
-        // Replace with your Docker Hub username if you plan to push later
-        DOCKER_IMAGE = "asbeelagi05/my-python-app"
+    tools {
+        maven 'Maven3'
+        jdk 'JDK17'
     }
-
     stages {
         stage('Checkout') {
             steps {
-                // This pulls the latest code from your GitHub repo
-                checkout scm
+                git branch:'main',
+                    url:'https://github.com/akshayr2418/demo-app.git'
             }
         }
-
-        stage('Build Docker Image') {
+        stage('Build') {
             steps {
-                script {
-                    echo "Building the Docker image..."
-                    sh "docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} ."
-                    sh "docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest"
-                }
+                sh 'mvn clean compile'
             }
         }
-
-        stage('Run Container/Tests') {
+        stage('Test') {
             steps {
-                script {
-                    echo "Running the container to verify it starts..."
-                    // This runs the container, checks if it's up, then stops it
-                    sh "docker run -d --name test-container ${DOCKER_IMAGE}:latest"
-                    sh "docker ps"
-                    sh "docker stop test-container"
-                    sh "docker rm test-container"
-                }
+                sh 'mvn test'
+            }
+        }
+        stage('Package') {
+            steps {
+                sh 'mvn package'
+            }
+        }
+        stage('Run Application') {
+            steps {
+                sh 'mvn exec:java -Dexec.mainClass="com.example.app.App"'
             }
         }
     }
 
+    
     post {
-        always {
-            echo "Cleaning up workspace..."
-            cleanWs()
-        }
+
         success {
-            echo "Build and test completed successfully!"
+            emailext (
+                subject: "SUCCESS: ${JOB_NAME} #${BUILD_NUMBER}",
+                body: "Build succeeded!\nCheck: ${BUILD_URL}",
+                to: "akshayr2418@gmail.com"
+            )
         }
+
         failure {
-            echo "Something went wrong. Check the console logs."
+            emailext (
+                subject: "FAILED: ${JOB_NAME} #${BUILD_NUMBER}",
+                body: "Build failed!\nCheck: ${BUILD_URL}",
+                to: "akshayr2418@gmail.com"
+            )
         }
+        
     }
+    
 }
